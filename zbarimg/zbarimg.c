@@ -116,7 +116,7 @@ static inline int dump_error(MagickWand *wand)
     MagickRelinquishMemory(desc);
     return(exit_code);
 }
-
+// 扫描图片
 static int scan_image (const char *filename)
 {
     if(exit_code == 3)

@@ -593,7 +593,7 @@ static inline void quiet_border (zbar_image_scanner_t *iscn)
         y += (dy);                              \
         p += (dx) + ((intptr_t)(dy) * w);       \
     } while(0);
-
+// 图像扫描过程
 int zbar_scan_image (zbar_image_scanner_t *iscn,
                      zbar_image_t *img)
 {
@@ -618,6 +618,7 @@ int zbar_scan_image (zbar_image_scanner_t *iscn,
     if(img->format != fourcc('Y','8','0','0') &&
        img->format != fourcc('G','R','E','Y'))
         return(-1);
+    // iscn 中i是指 image
     iscn->img = img;
 
     /* recycle previous scanner and image results */
@@ -641,13 +642,24 @@ int zbar_scan_image (zbar_image_scanner_t *iscn,
     svg_image("debug.png", w, h);
 
     zbar_scanner_t *scn = iscn->scn;
-
+    //  密度是什么意思　？
+    //  通常输出是　1 
+    //  Y方向的密度
     int density = CFG(iscn, ZBAR_CFG_Y_DENSITY);
+
+    #ifdef ENABLE_DEBUG
+        printf("Debug: Density Y = %d\n",density);
+    #endif
+
     if(density > 0) {
         svg_group_start("scanner", 0, 1, 1, 0, 0);
+        // Jack: p for pixel
         const uint8_t *p = data;
+        // x,y是像素位置坐标
         int x = 0, y = 0;
+        // dy 是垂直增量
         iscn->dy = 0;
+
 
         int border = (((h - 1) % density) + 1) / 2;
         if(border > h / 2)
@@ -656,17 +668,22 @@ int zbar_scan_image (zbar_image_scanner_t *iscn,
         iscn->v = y;
 
         zbar_scanner_new_scan(scn);
-
+        // 初始时刻 y = 0
         while(y < h) {
             zprintf(128, "img_x+: %04d,%04d @%p\n", x, y, p);
             svg_path_start("vedge", 1. / 32, 0, y + 0.5);
+            // dx = 1 说明扫描方向是向右
+            // u 代表什么意思不明白 ? 
             iscn->dx = iscn->du = 1;
             iscn->umin = 0;
+            // 遍历一行
             while(x < w) {
                 uint8_t d = *p;
+                // 向右移动一个x坐标，y坐标保持不变
                 movedelta(1, 0);
                 zbar_scan_y(scn, d);
             }
+            
             ASSERT_POS;
             quiet_border(iscn);
             svg_path_end();
@@ -696,7 +713,11 @@ int zbar_scan_image (zbar_image_scanner_t *iscn,
     }
     iscn->dx = 0;
 
+    // X 方向的密度
     density = CFG(iscn, ZBAR_CFG_X_DENSITY);
+    #ifdef ENABLE_DEBUG
+        printf("Debug: Density X = %d\n",density);
+    #endif
     if(density > 0) {
         svg_group_start("scanner", 90, 1, -1, 0, 0);
         const uint8_t *p = data;
@@ -711,6 +732,7 @@ int zbar_scan_image (zbar_image_scanner_t *iscn,
         while(x < w) {
             zprintf(128, "img_y+: %04d,%04d @%p\n", x, y, p);
             svg_path_start("vedge", 1. / 32, 0, x + 0.5);
+
             iscn->dy = iscn->du = 1;
             iscn->umin = 0;
             while(y < h) {

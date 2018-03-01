@@ -192,7 +192,7 @@ inline zbar_symbol_type_t zbar_scanner_flush (zbar_scanner_t *scn)
         return(zbar_decode_width(scn->decoder, 0));
     return(ZBAR_PARTIAL);
 }
-
+// 通过这个函数　要得到条码的类型 　后续再看如何确定是何种二维码
 zbar_symbol_type_t zbar_scanner_new_scan (zbar_scanner_t *scn)
 {
     zbar_symbol_type_t edge = ZBAR_NONE;
@@ -209,34 +209,68 @@ zbar_symbol_type_t zbar_scanner_new_scan (zbar_scanner_t *scn)
         zbar_decoder_new_scan(scn->decoder);
     return(edge);
 }
-
+// 这个函数究竟做了什么? 
+// 参考:
+// http://blog.csdn.net/sunflower_boy/article/details/50783179
+// http://blog.csdn.net/u013738531/article/details/54574262
+// 来完成滤波，阈值，确定边缘，转化成宽度流 
 zbar_symbol_type_t zbar_scan_y (zbar_scanner_t *scn,
                                 int y)
 {
     /* FIXME calc and clip to max y range... */
+    // register 代表这个变量是申请放在寄存器中的，为了提高速度
     /* retrieve short value history */
-    register int x = scn->x;
+    // 这里的x不代表坐标: 数值先属于(0,width-1)范围 后属于(0,height-1)范围
+    register int x = scn->x; // x: relative scan position of next sample 
+    #ifdef ENABLE_DEBUG
+        printf("DEBUG: scn->x = %d\n", x);
+    #endif
+    // scn->y0[4]这个小数组在之前已经准备好了?
     register int y0_1 = scn->y0[(x - 1) & 3];
     register int y0_0 = y0_1;
     if(x) {
         /* update weighted moving average */
+        // EWMA: exponentially weighted moving average 指数加权平均
+        // 参考: http://www.sohu.com/a/197998432_206784
+        // 下面这个表达式的运算顺序是: 
+        // 1. ((int)((y - y0_1) * EWMA_WEIGHT)) >> ZBAR_FIXE
+        // 2. 将上式的结果加y0_0 再赋值给y0_0
+        // 它在做什么?
         y0_0 += ((int)((y - y0_1) * EWMA_WEIGHT)) >> ZBAR_FIXED;
         scn->y0[x & 3] = y0_0;
     }
+    // 如果x==0, 也就是第一列(行)时
     else
         y0_0 = y0_1 = scn->y0[0] = scn->y0[1] = scn->y0[2] = scn->y0[3] = y;
+
     register int y0_2 = scn->y0[(x - 2) & 3];
     register int y0_3 = scn->y0[(x - 3) & 3];
+
+
+    // 在一个很小的范围内求差分
     /* 1st differential @ x-1 */
+    // 求一阶差分
     register int y1_1 = y0_1 - y0_2;
-    {
-        register int y1_2 = y0_2 - y0_3;
-        if((abs(y1_1) < abs(y1_2)) &&
-           ((y1_1 >= 0) == (y1_2 >= 0)))
+
+    // 下面这个括号加得莫名奇妙，我把它注释掉了
+    // { 
+    // 这个没有理清，感觉这个假设永远不会成立
+    // 但事实却有成立的
+    register int y1_2 = y0_2 - y0_3;
+    if((abs(y1_1) < abs(y1_2)) && 
+        ((y1_1 >= 0) == (y1_2 >= 0)))
+        {
+            #ifdef ENABLE_DEBUG
+            printf("DEBUG: I'm IN This IF (y1_1, y1_2) = ( %d, %d ) \n",y1_1, y1_2);
+            #endif
+
             y1_1 = y1_2;
-    }
+        }
+
+    // }
 
     /* 2nd differentials @ x-1 & x-2 */
+    // 求二阶差分
     register int y2_1 = y0_0 - (y0_1 * 2) + y0_2;
     register int y2_2 = y0_1 - (y0_2 * 2) + y0_3;
 
@@ -244,6 +278,7 @@ zbar_symbol_type_t zbar_scan_y (zbar_scanner_t *scn,
             x, y, y0_1, y1_1, y2_1);
 
     zbar_symbol_type_t edge = ZBAR_NONE;
+    // ???
     /* 2nd zero-crossing is 1st local min/max - could be edge */
     if((!y2_1 ||
         ((y2_1 > 0) ? y2_2 < 0 : y2_2 > 0)) &&

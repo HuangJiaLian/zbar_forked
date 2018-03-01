@@ -13,7 +13,7 @@ main()
                     _zbar_qr_reset() 
                     // 图片格式转化，得到灰度图
                     // 回收上一个scanner 图片结果
-                    zbar_scanner_new_scan(scn){ // 返回边缘
+                    zbar_scanner_new_scan(scn){ // 返回是哪种类型的码
                         zbar_scanner_flush(){
                             process_edge(){
                                 zbar_decode_width()//返还码的类型?
