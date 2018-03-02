@@ -60,19 +60,36 @@
                                  * (1 << (ZBAR_FIXED + 1)) + 1) / 2))
 
 /* scanner state */
+/* 这就是一个沿着像素移动的数据结构　*/
 struct zbar_scanner_s {
     zbar_decoder_t *decoder; /* associated bar width decoder */
+                            // 这难道是行解码器,decoder不是函数而是一种数据结构
     unsigned y1_min_thresh; /* minimum threshold */
+                            /* y1 是像素的一阶差分，代表斜率 */
 
     unsigned x;             /* relative scan position of next sample */
+                            /* 下一个样本的相对扫描位置??? 具体是什么意思呢? */
+
     int y0[4];              /* short circular buffer of average intensities */
+                            /* 围绕当前像素的四个像素, 具体是当前像素周围的哪四个像素，还不清楚?*/
+                            /* 对这四个像素求一阶,二阶差分可以用来判断当前位置是否是边缘 */  
 
     int y1_sign;            /* slope at last crossing */
+                            /* 上一个边缘像素的斜率　*/
+                            /* 猜测:在一个边缘处可能会检测到多个边缘点，通过比较这一次的斜率
+                               和上一次的斜率，如果异号，那么就知道，这次边缘是合理的*/  
+
     unsigned y1_thresh;     /* current slope threshold */
+                            /* 当前位置像素斜率(像素变换率)*/ 
 
     unsigned cur_edge;      /* interpolated position of tracking edge */
     unsigned last_edge;     /* interpolated position of last located edge */
+                            /* 最后定位边缘的插补位置, 不明白? */ 
+                            // 应该就是位置坐标，我猜的．
+
     unsigned width;         /* last element width */
+                            /* 猜测: 距离上一个元素(边缘像素)的距离*/ 
+                            // 应该是猜对了的
 };
 
 zbar_scanner_t *zbar_scanner_create (zbar_decoder_t *dcode)
@@ -126,6 +143,7 @@ zbar_color_t zbar_scanner_get_color (const zbar_scanner_t *scn)
 static inline unsigned calc_thresh (zbar_scanner_t *scn)
 {
     /* threshold 1st to improve noise rejection */
+    // y1_thresh　是一阶差分的的阈值，　大于它
     unsigned thresh = scn->y1_thresh;
     if((thresh <= scn->y1_min_thresh) || !scn->width) {
         dprintf(1, " tmin=%d", scn->y1_min_thresh);
@@ -147,15 +165,20 @@ static inline unsigned calc_thresh (zbar_scanner_t *scn)
     scn->y1_thresh = scn->y1_min_thresh;
     return(scn->y1_min_thresh);
 }
-
+// 在确定了上一个边缘像素确实是边缘像素后
+// 处理边缘
 static inline zbar_symbol_type_t process_edge (zbar_scanner_t *scn,
                                                int y1)
 {
+    // 若上一个边缘像素的斜率为０????
     if(!scn->y1_sign)
         scn->last_edge = scn->cur_edge = (1 << ZBAR_FIXED) + ROUND;
-    else if(!scn->last_edge)
-        scn->last_edge = scn->cur_edge;
-
+    else if(!scn->last_edge) // 若上一个边缘在第0位置(开始位置，猜的)
+        scn->last_edge = scn->cur_edge; // 因为要进行后续的步骤，所以当前的边缘像素，就该
+                                        // 变成旧的边缘像素了(last_edge)，把位置记录下来
+    // 以上两个if语句主要是处理特殊情况
+    // 下面的操作针对的是一般的情况
+    // 获取两个边缘的宽度
     scn->width = scn->cur_edge - scn->last_edge;
     dprintf(1, " sgn=%d cur=%d.%d w=%d (%s)\n",
             scn->y1_sign, scn->cur_edge >> ZBAR_FIXED,
@@ -172,6 +195,7 @@ static inline zbar_symbol_type_t process_edge (zbar_scanner_t *scn,
         return(zbar_decode_width(scn->decoder, scn->width));
     return(ZBAR_PARTIAL);
 }
+
 
 inline zbar_symbol_type_t zbar_scanner_flush (zbar_scanner_t *scn)
 {
@@ -210,6 +234,8 @@ zbar_symbol_type_t zbar_scanner_new_scan (zbar_scanner_t *scn)
         zbar_decoder_new_scan(scn->decoder);
     return(edge);
 }
+
+
 // 这个函数究竟做了什么? 
 // 参考:
 // http://blog.csdn.net/sunflower_boy/article/details/50783179
@@ -285,16 +311,22 @@ zbar_symbol_type_t zbar_scan_y (zbar_scanner_t *scn,
     // ???
     /* 2nd zero-crossing is 1st local min/max - could be edge */
     // 如果判断出是边界，那么应该就要将边界信息保存下来
-
+    // 如果 [ y2_1==0 或者　(y2_1, y2_2异号) ] 并且 [y1_1（斜率）> 阈值]
+    // 那么就可能是边界
     if((!y2_1 ||
         ((y2_1 > 0) ? y2_2 < 0 : y2_2 > 0)) &&
        (calc_thresh(scn) <= abs(y1_1)))
     {
         /* check for 1st sign change */
+        // 这里挺巧妙的, y1_rev里边就是1或者0
+        // 用来表示这个边缘的斜率和上一个边缘是否异号
+        // 异号才是真的边缘 ? 
         char y1_rev = (scn->y1_sign > 0) ? y1_1 < 0 : y1_1 > 0;
         if(y1_rev)
             /* intensity change reversal - finalize previous edge */
-            edge = process_edge(scn, y1_1);
+            // 一行(列)中在边缘处只应该有一个边缘像素,这各边缘像素的斜率和上一个边缘像素的斜率异号
+            // 这样就把上一个边缘像素点确定下来了 
+            edge = process_edge(scn, y1_1); 
 
         if(y1_rev || (abs(scn->y1_sign) < abs(y1_1))) {
             scn->y1_sign = y1_1;

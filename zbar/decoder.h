@@ -75,12 +75,20 @@
 #define TEST_CFG(config, cfg) (((config) >> (cfg)) & 1)
 
 /* symbology independent decoder state */
+// 符号独立的解码器状态 不明白是什么意思?
 struct zbar_decoder_s {
-    unsigned char idx;                  /* current width index */
+    unsigned char idx;                  /* current width index 当前像素的宽索引*/
     unsigned w[DECODE_WINDOW];          /* window of last N bar widths */
     zbar_symbol_type_t type;            /* type of last decoded data */
-    zbar_symbol_type_t lock;            /* buffer lock */
+                                        // 上一个解码的类型
+                                        // 猜测: 正常情况下，在同一张图片中这个值是不应该改变的
+                                        // 因为一个码的图片就只能是一种吗. 这里的上一个说明:
+                                        // 程序通过一个小的window，结合边缘在猜测究竟是哪一种码
+                                        // 通过多个边缘的相关信息来猜出最终是什么类型的码
 
+    zbar_symbol_type_t lock;            /* buffer lock */
+                                        // 这个和内存操作有关? 
+                                        
     /* everything above here is automatically reset */
     unsigned buf_alloc;                 /* dynamic buffer allocation */
     unsigned buflen;                    /* binary data length */

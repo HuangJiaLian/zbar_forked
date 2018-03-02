@@ -4,6 +4,7 @@
 #include "qrcode.h"
 
 /* QR Code symbol finder state */
+// 定位符
 typedef struct qr_finder_s {
     unsigned s5;                /* finder pattern width */
     qr_finder_line line;        /* position info needed by decoder */

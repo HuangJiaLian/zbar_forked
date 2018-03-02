@@ -588,12 +588,14 @@ static inline void quiet_border (zbar_image_scanner_t *iscn)
     zbar_scanner_new_scan(scn);
 }
 
+// 更新x,y 坐标，位置指针 
 #define movedelta(dx, dy) do {                  \
         x += (dx);                              \
         y += (dy);                              \
         p += (dx) + ((intptr_t)(dy) * w);       \
     } while(0);
 // 图像扫描过程
+// 两个方向做边缘处理
 int zbar_scan_image (zbar_image_scanner_t *iscn,
                      zbar_image_t *img)
 {
@@ -643,8 +645,8 @@ int zbar_scan_image (zbar_image_scanner_t *iscn,
 
     zbar_scanner_t *scn = iscn->scn;
     //  密度是什么意思　？
-    //  通常输出是　1 
-    //  Y方向的密度
+    //  通过测试:通常输出是　1 
+    //  Y方向的密度, 类似于步长
     int density = CFG(iscn, ZBAR_CFG_Y_DENSITY);
 
     #ifdef ENABLE_DEBUG
@@ -653,41 +655,47 @@ int zbar_scan_image (zbar_image_scanner_t *iscn,
 
     if(density > 0) {
         svg_group_start("scanner", 0, 1, 1, 0, 0);
-        // Jack: p for pixel
+        // p for pixel
         const uint8_t *p = data;
         // x,y是像素位置坐标
         int x = 0, y = 0;
         // dy 是垂直增量
         iscn->dy = 0;
 
-
+        // 取　h/2 为border的值是为什么?
+        // 应该和"S"型的扫描路径有关
         int border = (((h - 1) % density) + 1) / 2;
         if(border > h / 2)
             border = h / 2;
+        // 让x = 0; y = border; 指针指到(x,y)的位置，　why do this ?
         movedelta(0, border);
+        // v 这个参数是什么意思 ?
         iscn->v = y;
 
         zbar_scanner_new_scan(scn);
         // 初始时刻 y = 0
         while(y < h) {
+
             zprintf(128, "img_x+: %04d,%04d @%p\n", x, y, p);
             svg_path_start("vedge", 1. / 32, 0, y + 0.5);
             // dx = 1 说明扫描方向是向右
             // u 代表什么意思不明白 ? 
             iscn->dx = iscn->du = 1;
             iscn->umin = 0;
-            // 遍历一行
+            // 遍历行
             while(x < w) {
                 uint8_t d = *p;
                 // 向右移动一个x坐标，y坐标保持不变
                 movedelta(1, 0);
                 zbar_scan_y(scn, d);
             }
-            
+            // 更新位置指针
             ASSERT_POS;
+            // 安静的border有什么用 ?
             quiet_border(iscn);
             svg_path_end();
-
+            // 一行遍历完成后，向下移动一个密度单位 
+            // 扫描方向向左，　类似蛇移动的方式 
             movedelta(-1, density);
             iscn->v = y;
             if(y >= h)
@@ -696,7 +704,9 @@ int zbar_scan_image (zbar_image_scanner_t *iscn,
             zprintf(128, "img_x-: %04d,%04d @%p\n", x, y, p);
             svg_path_start("vedge", -1. / 32, w, y + 0.5);
             iscn->dx = iscn->du = -1;
+            // ??
             iscn->umin = w;
+            // 向左遍历
             while(x >= 0) {
                 uint8_t d = *p;
                 movedelta(-1, 0);
@@ -705,7 +715,7 @@ int zbar_scan_image (zbar_image_scanner_t *iscn,
             ASSERT_POS;
             quiet_border(iscn);
             svg_path_end();
-
+            // 碰到边界，向下，反向
             movedelta(1, density);
             iscn->v = y;
         }

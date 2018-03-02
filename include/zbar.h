@@ -1108,6 +1108,7 @@ extern int zbar_scan_image(zbar_image_scanner_t *scanner,
 
 struct zbar_decoder_s;
 /** opaque decoder object. */
+// 不透明的解码结构
 typedef struct zbar_decoder_s zbar_decoder_t;
 
 /** decoder data handler callback function.
