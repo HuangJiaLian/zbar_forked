@@ -122,6 +122,7 @@ zbar_color_t zbar_scanner_get_color (const zbar_scanner_t *scn)
     return((scn->y1_sign <= 0) ? ZBAR_SPACE : ZBAR_BAR);
 }
 
+// 计算阈值
 static inline unsigned calc_thresh (zbar_scanner_t *scn)
 {
     /* threshold 1st to improve noise rejection */
@@ -231,7 +232,9 @@ zbar_symbol_type_t zbar_scan_y (zbar_scanner_t *scn,
     if(x) {
         /* update weighted moving average */
         // EWMA: exponentially weighted moving average 指数加权平均
-        // 参考: http://www.sohu.com/a/197998432_206784
+        // 参考: 
+        // １．http://www.sohu.com/a/197998432_206784
+        // ２．http://www.360doc.com/content/11/1116/10/7242176_164724098.shtml
         // 下面这个表达式的运算顺序是: 
         // 1. ((int)((y - y0_1) * EWMA_WEIGHT)) >> ZBAR_FIXE
         // 2. 将上式的结果加y0_0 再赋值给y0_0
@@ -248,6 +251,7 @@ zbar_symbol_type_t zbar_scan_y (zbar_scanner_t *scn,
 
 
     // 在一个很小的范围内求差分
+    // 求差分是为了判断是否是边界
     /* 1st differential @ x-1 */
     // 求一阶差分
     register int y1_1 = y0_1 - y0_2;
@@ -280,6 +284,8 @@ zbar_symbol_type_t zbar_scan_y (zbar_scanner_t *scn,
     zbar_symbol_type_t edge = ZBAR_NONE;
     // ???
     /* 2nd zero-crossing is 1st local min/max - could be edge */
+    // 如果判断出是边界，那么应该就要将边界信息保存下来
+
     if((!y2_1 ||
         ((y2_1 > 0) ? y2_2 < 0 : y2_2 > 0)) &&
        (calc_thresh(scn) <= abs(y1_1)))
