@@ -88,6 +88,7 @@ typedef struct recycle_bucket_s {
 } recycle_bucket_t;
 
 /* image scanner state */
+// 传给qr解码器的第二个参数的类型
 struct zbar_image_scanner_s {
     zbar_scanner_t *scn;        /* associated linear intensity scanner */
     zbar_decoder_t *dcode;      /* associated symbol decoder */
@@ -698,6 +699,7 @@ int zbar_scan_image (zbar_image_scanner_t *iscn,
             // 扫描方向向左，　类似蛇移动的方式 
             movedelta(-1, density);
             iscn->v = y;
+            // 扫到下边缘了，退出
             if(y >= h)
                 break;
 
@@ -778,8 +780,9 @@ int zbar_scan_image (zbar_image_scanner_t *iscn,
         svg_group_end();
     }
     iscn->dy = 0;
+    // 下面这句是否就表示, iscn->img这个数据没有利用价值了
     iscn->img = NULL;
-
+// 关键位置
 #ifdef ENABLE_QRCODE
     _zbar_qr_decode(iscn->qr, iscn, img);
 #endif

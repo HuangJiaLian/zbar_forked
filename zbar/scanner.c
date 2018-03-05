@@ -176,9 +176,9 @@ static inline zbar_symbol_type_t process_edge (zbar_scanner_t *scn,
     else if(!scn->last_edge) // 若上一个边缘在第0位置(开始位置，猜的)
         scn->last_edge = scn->cur_edge; // 因为要进行后续的步骤，所以当前的边缘像素，就该
                                         // 变成旧的边缘像素了(last_edge)，把位置记录下来
-    // 以上两个if语句主要是处理特殊情况
-    // 下面的操作针对的是一般的情况
-    // 获取两个边缘的宽度
+    // 以上两个if语句主要是处理特殊情况 
+    // 下面的操作针对的是一般的情况 
+    // 获取两个边缘的宽度 
     scn->width = scn->cur_edge - scn->last_edge;
     dprintf(1, " sgn=%d cur=%d.%d w=%d (%s)\n",
             scn->y1_sign, scn->cur_edge >> ZBAR_FIXED,
@@ -241,8 +241,7 @@ zbar_symbol_type_t zbar_scanner_new_scan (zbar_scanner_t *scn)
 // http://blog.csdn.net/sunflower_boy/article/details/50783179
 // http://blog.csdn.net/u013738531/article/details/54574262
 // 来完成滤波，阈值，确定边缘，转化成宽度流 
-zbar_symbol_type_t zbar_scan_y (zbar_scanner_t *scn,
-                                int y)
+zbar_symbol_type_t zbar_scan_y (zbar_scanner_t *scn, int y)
 {
     /* FIXME calc and clip to max y range... */
     // register 代表这个变量是申请放在寄存器中的，为了提高速度
@@ -329,10 +328,13 @@ zbar_symbol_type_t zbar_scan_y (zbar_scanner_t *scn,
             edge = process_edge(scn, y1_1); 
 
         if(y1_rev || (abs(scn->y1_sign) < abs(y1_1))) {
+            // 更新上一次的(相对的)边界的斜率
+            // 问: 为什么要用绝对值大的来替代呢? 
             scn->y1_sign = y1_1;
 
             /* adaptive thresholding */
             /* start at multiple of new min/max */
+            // 更新像素变化率(斜率)的阈值
             scn->y1_thresh = (abs(y1_1) * THRESH_INIT + ROUND) >> ZBAR_FIXED;
             dprintf(1, "\tthr=%d", scn->y1_thresh);
             if(scn->y1_thresh < scn->y1_min_thresh)
@@ -354,6 +356,7 @@ zbar_symbol_type_t zbar_scan_y (zbar_scanner_t *scn,
         dprintf(1, "\n");
     /* FIXME add fall-thru pass to decoder after heuristic "idle" period
        (eg, 6-8 * last width) */
+    // 更新下一个即将要处理的像素的x坐标?
     scn->x = x + 1;
     return(edge);
 }

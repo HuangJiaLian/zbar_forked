@@ -78,6 +78,7 @@ int _zbar_process_image (zbar_processor_t *proc,
             proc->syms = NULL;
         }
         zbar_image_scanner_recycle_image(proc->scanner, img);
+        // 关键位置
         int nsyms = zbar_scan_image(proc->scanner, tmp);
         _zbar_image_swap_symbols(img, tmp);
 
@@ -671,6 +672,7 @@ int zbar_process_image (zbar_processor_t *proc,
                                       zbar_image_get_height(img));
     if(!rc) {
         zbar_image_scanner_enable_cache(proc->scanner, 0);
+        // 关键位置
         rc = _zbar_process_image(proc, img);
         if(proc->streaming)
             zbar_image_scanner_enable_cache(proc->scanner, 1);

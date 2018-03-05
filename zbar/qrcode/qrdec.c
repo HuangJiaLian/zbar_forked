@@ -40,7 +40,9 @@ typedef struct qr_pack_buf      qr_pack_buf;
 #define QR_INT_LOGBITS (QR_ILOG(QR_INT_BITS))
 
 /*A 14 bit resolution for a homography ensures that the ideal module size for a
-   version 40 code differs from that of a version 39 code by at least 2.*/
+   version 40 code differs from that of a version 39 code by at least 2.
+   单应性的14位分辨率确保了版本40代码的理想模块大小与该版本39代码的理想模块大小不同至少2 ??
+   */
 #define QR_HOM_BITS (14)
 
 /*The number of bits of sub-module precision to use when searching for
@@ -49,17 +51,24 @@ typedef struct qr_pack_buf      qr_pack_buf;
    been eroded by up to 50% (due to blurring, etc.).
   This must be at least one, since it affects the dynamic range of the
    transforms, and we sample at half-module resolution to compute a bounding
-   quadrilateral for the code.*/
+   quadrilateral for the code.
+   
+  搜索对齐模式时使用的子模块精度的位数。
+  即使模块已经被高达50％的侵蚀（由于模糊等原因），也可以找到两位对齐模式。
+  这必须至少为1，因为它影响变换的动态范围，我们以半模分辨率采样来计算代码的边界四边形。
+   */
 #define QR_ALIGN_SUBPREC (2)
 
 
 /* collection of finder lines */
 typedef struct qr_finder_lines {
+    // 跨过定位符的线
     qr_finder_line *lines;
+    // 猜测是水平线，竖直线的的条数 ?
     int nlines, clines;
 } qr_finder_lines;
 
-
+// 关键步骤
 struct qr_reader {
     /*The GF(256) representation used in Reed-Solomon decoding.*/
     rs_gf256  gf;
@@ -110,10 +119,13 @@ void _zbar_qr_reset (qr_reader *reader)
 
 
 /*A cluster of lines crossing a finder pattern (all in the same direction).*/
+// 簇: 跨过定位符的一组线
 struct qr_finder_cluster{
   /*Pointers to the lines crossing the pattern.*/
+  // 这组线的地址
   qr_finder_line **lines;
   /*The number of lines in the cluster.*/
+  // 这组线的个数
   int              nlines;
 };
 
@@ -121,18 +133,36 @@ struct qr_finder_cluster{
 /*A point on the edge of a finder pattern.
   These are obtained from the endpoints of the lines crossing this particular
    pattern.*/
+// 在定位符边界上的一个点
 struct qr_finder_edge_pt{
   /*The location of the edge point.*/
+  // 这个点的坐标
   qr_point pos;
   /*A label classifying which edge this belongs to:
     0: negative u edge (left)
     1: positive u edge (right)
     2: negative v edge (top)
     3: positive v edge (bottom)*/
+  // 只有四个值，表示这个点处于４边的哪一边
   int      edge;
   /*The (signed) perpendicular distance of the edge point from a line parallel
      to the edge passing through the finder center, in (u,v) coordinates.
-    This is also re-used by RANSAC to store inlier flags.*/
+    This is also re-used by RANSAC to store inlier flags. */
+  // （u，v）坐标中 边缘点 与 平行于 通过定位符中心的边缘的线 的（带符号）垂直距离 ???
+  // 这也被RANSAC用来存储inlier标志。
+  /* 随机抽样一致算法（RANdom SAmple Consensus，RANSAC）。它采用迭代的方式从一組
+  包含離群的被觀測數據中估算出數學模型的參數。 RANSAC是一個非確定性算法，在某種意義上說，
+  它會產生一個在一定概率下合理的結果，而更多次的迭代会使这一概率增加。
+  此RANSAC算法在1981年由Fischler和Bolles首次提出。
+
+  RANSAC的基本假設是
+    「內群」數據可以通過幾組模型的參數來敘述其分佈，而｢離群」數據則是不適合模型化的數據。
+    數據會受雜訊影響，雜訊指的是離群，例如從極端的雜訊或錯誤解釋有關數據的測量或不正確的假設。
+    RANSAC假定，給定一組（通常很小）的內群，存在一個程序，這個程序可以估算最佳解釋
+    或最適用於這一數據模型的參數。
+  参考: https://zh.wikipedia.org/wiki/%E9%9A%A8%E6%A9%9F%E6%8A%BD%E6%A8%A3%E4%B8%80%E8%87%B4
+*/ 
+  // ？？？
   int      extent;
 };
 
@@ -235,14 +265,23 @@ static int qr_finder_cluster_lines(qr_finder_cluster *_clusters,
 
 /*Adds the coordinates of the edge points from the lines contained in the
    given list of clusters to the list of edge points for a finder center.
+  将给定簇列表中包含的线的边缘点坐标添加到定位符中心的边缘点列表中。
   Only the edge point position is initialized.
+  只有边缘点位置被初始化。
   The edge label and extent are set by qr_finder_edge_pts_aff_classify()
    or qr_finder_edge_pts_hom_classify().
+  边缘标签和范围由qr_finder_edge_pts_aff_classify（）
+  或qr_finder_edge_pts_hom_classify（）设置。
   _edge_pts:   The buffer in which to store the edge points.
+                存储边缘点的缓冲区。
   _nedge_pts:  The current number of edge points in the buffer.
+                缓冲区中当前的边缘点数量。
   _neighbors:  The list of lines in the cluster.
+                簇中的线的列表。
   _nneighbors: The number of lines in the list of lines in the cluster.
+                簇中的线的列表的个数
   _v:          0 for horizontal lines and 1 for vertical lines.
+                一个标记水平还是垂直的标记变量
   Return: The new total number of edge points.*/
 static int qr_finder_edge_pts_fill(qr_finder_edge_pt *_edge_pts,int _nedge_pts,
  qr_finder_cluster **_neighbors,int _nneighbors,int _v){
@@ -281,7 +320,9 @@ static int qr_finder_center_cmp(const void *_a,const void *_b){
    (a->pos[0]>b->pos[0])-(a->pos[0]<b->pos[0]);
 }
 
+
 /*Determine if a horizontal line crosses a vertical line.
+  判断一条水平线是否和一条垂直的线相交
   _hline: The horizontal line.
   _vline: The vertical line.
   Return: A non-zero value if the lines cross, or zero if they do not.*/
@@ -292,8 +333,11 @@ static int qr_finder_lines_are_crossing(const qr_finder_line *_hline,
    _vline->pos[1]<=_hline->pos[1]&&_hline->pos[1]<_vline->pos[1]+_vline->len;
 }
 
-/*Finds horizontal clusters that cross corresponding vertical clusters,
+
+/*
+  Finds horizontal clusters that cross corresponding vertical clusters,
    presumably corresponding to a finder center.
+   找出跨越相应垂直簇的水平簇，大概对应于定位符中心。
   _center:     The buffer in which to store putative finder centers.
   _edge_pts:   The buffer to use for the edge point lists for each finder
                 center.
@@ -301,10 +345,12 @@ static int qr_finder_lines_are_crossing(const qr_finder_line *_hline,
   _nhclusters: The number of horizontal line clusters.
   _vclusters:  The clusters of vertical lines crossing finder patterns.
   _nvclusters: The number of vertical line clusters.
-  Return: The number of putative finder centers.*/
+  Return: The number of putative finder centers.
+*/
 static int qr_finder_find_crossings(qr_finder_center *_centers,
  qr_finder_edge_pt *_edge_pts,qr_finder_cluster *_hclusters,int _nhclusters,
- qr_finder_cluster *_vclusters,int _nvclusters){
+ qr_finder_cluster *_vclusters,int _nvclusters)
+ {
   qr_finder_cluster **hneighbors;
   qr_finder_cluster **vneighbors;
   unsigned char      *hmark;
@@ -312,11 +358,22 @@ static int qr_finder_find_crossings(qr_finder_center *_centers,
   int                 ncenters;
   int                 i;
   int                 j;
+
+  /* 
+    问: Difference between malloc and calloc?
+    答: 
+    calloc() zero-initializes the buffer, 
+    while malloc() leaves the memory uninitialized.
+    参考:
+    https://stackoverflow.com/questions/1538420/difference-between-malloc-and-calloc
+  */ 
+
   hneighbors=(qr_finder_cluster **)malloc(_nhclusters*sizeof(*hneighbors));
   vneighbors=(qr_finder_cluster **)malloc(_nvclusters*sizeof(*vneighbors));
   hmark=(unsigned char *)calloc(_nhclusters,sizeof(*hmark));
   vmark=(unsigned char *)calloc(_nvclusters,sizeof(*vmark));
   ncenters=0;
+
   /*TODO: This may need some re-working.
     We should be finding groups of clusters such that _all_ horizontal lines in
      _all_ horizontal clusters in the group cross _all_ vertical lines in _all_
@@ -326,30 +383,55 @@ static int qr_finder_find_crossings(qr_finder_center *_centers,
     In principle, that is easy to do, but a realistic implementation without
      floating point is a lot of work (and computationally expensive).
     Right now we are relying on a sufficient border around the finder patterns
-     to prevent false positives.*/
-  for(i=0;i<_nhclusters;i++)if(!hmark[i]){
+     to prevent false positives.
+    我们应该找到一组簇，使得组中的_all_水平簇中的_all_水平行与组中的_all_垂直簇中的所有垂直行交叉。 
+    这相当于在连接图中找到最大的双方团体，这需要线性编程来有效解决。 
+    原则上，这很容易实现，但没有浮点的实际实现是很多工作（并且在计算上是昂贵的）。 
+    现在我们依靠定位符周围的足够边界来防止误报。
+     
+  */
+  for(i=0; i<_nhclusters; i++)
+  // hmark[i]==0 表示第i条水平线还没有被处理过
+  if(!hmark[i]){
+    // 定义了两条线的地址　水平和垂直的
     qr_finder_line *a;
     qr_finder_line *b;
-    int             nvneighbors;
-    int             nedge_pts;
-    int             y;
+    // 附近垂直边缘点的个数吗?
+    int nvneighbors;
+    // 边缘点的个数
+    int nedge_pts;
+    // y 是用来计算定位符中心纵坐标的
+    int y;
+    // >> 1表示除以２的意思，簇是排了序的所以就是取a为最中间那一条线
     a=_hclusters[i].lines[_hclusters[i].nlines>>1];
+    // 赋值为0不明白是什么意思??
     y=nvneighbors=0;
-    for(j=0;j<_nvclusters;j++)if(!vmark[j]){
+    for(j=0; j<_nvclusters; j++)
+    if(!vmark[j]){
+      // b 取垂直簇的中间那一条
       b=_vclusters[j].lines[_vclusters[j].nlines>>1];
+      // 判断a,b是否相交
       if(qr_finder_lines_are_crossing(a,b)){
+        // 标记这条线
         vmark[j]=1;
-        y+=(b->pos[1]<<1)+b->len;
-        if(b->boffs>0&&b->eoffs>0)y+=b->eoffs-b->boffs;
+        // b->pos[1] 是簇垂直中心线的起始点的y坐标； "<< 1"是成2的意思
+        // b->len  是穿过中间那个小黑正方形区域的像素个数
+        // 这个y有什么用? 为什么等于它? 
+        y+=(b->pos[1]<<1) + b->len;
+        if(b->boffs>0 && b->eoffs>0) y+=b->eoffs - b->boffs;
+        // 添加一条记录
         vneighbors[nvneighbors++]=_vclusters+j;
       }
     }
+    // 如果找到有这样的??
     if(nvneighbors>0){
+      // c 就是center的意思
       qr_finder_center *c;
       int               nhneighbors;
+      // x 是用来计算定位符中心的横坐标的
       int               x;
       x=(a->pos[0]<<1)+a->len;
-      if(a->boffs>0&&a->eoffs>0)x+=a->eoffs-a->boffs;
+      if(a->boffs>0&&a->eoffs>0) x+=a->eoffs-a->boffs;
       hneighbors[0]=_hclusters+i;
       nhneighbors=1;
       j=nvneighbors>>1;
@@ -359,7 +441,7 @@ static int qr_finder_find_crossings(qr_finder_center *_centers,
         if(qr_finder_lines_are_crossing(a,b)){
           hmark[j]=1;
           x+=(a->pos[0]<<1)+a->len;
-          if(a->boffs>0&&a->eoffs>0)x+=a->eoffs-a->boffs;
+          if(a->boffs>0&&a->eoffs>0) x+=a->eoffs-a->boffs;
           hneighbors[nhneighbors++]=_hclusters+j;
         }
       }
@@ -367,14 +449,19 @@ static int qr_finder_find_crossings(qr_finder_center *_centers,
       c->pos[0]=(x+nhneighbors)/(nhneighbors<<1);
       c->pos[1]=(y+nvneighbors)/(nvneighbors<<1);
       c->edge_pts=_edge_pts;
+      // 通过填充得出中心矩形周围有多少个边缘点
+      // 分两个方向去做处理，将数据重新存到新的结构中去
       nedge_pts=qr_finder_edge_pts_fill(_edge_pts,0,
        hneighbors,nhneighbors,0);
+      // 将上一步的结果作为第二个参数传给下下面的函数
       nedge_pts=qr_finder_edge_pts_fill(_edge_pts,nedge_pts,
        vneighbors,nvneighbors,1);
+      // 中心边缘像素点的个数重新存到新的机构中去
       c->nedge_pts=nedge_pts;
       _edge_pts+=nedge_pts;
     }
   }
+
   free(vmark);
   free(hmark);
   free(vneighbors);
@@ -384,15 +471,32 @@ static int qr_finder_find_crossings(qr_finder_center *_centers,
   return ncenters;
 }
 
-/*Locates a set of putative finder centers in the image.
+
+
+
+
+
+/*
+  注释这么多，估计比较重要啊
+  Locates a set of putative finder centers in the image.
+  在图像中找到一组假定的定位符中心。
   First we search for horizontal and vertical lines that have
    (dark:light:dark:light:dark) runs with size ratios of roughly (1:1:3:1:1).
+  首先，我们搜索水平和垂直线（黑暗：浅：黑暗：光：黑暗），大小比例大致为（1：1：3：1：1）。
+  (问: 如果此时才来比较，那之前的判断是否有足够的线通过定位符是如何做到的　??)
+
   Then we cluster them into groups such that each subsequent pair of endpoints
    is close to the line before it in the cluster.
+  然后，我们将它们聚类为组，使得每对端点之后的每个端点都接近群集之前的行 ??
+
   This will locate many line clusters that don't cross a finder pattern, but
    qr_finder_find_crossings() will filter most of them out.
+  这将找到许多不通过查找器模式的行集群，但qr_finder_find_crossings（）将过滤大部分行。
+  
   Where horizontal and vertical clusters cross, a prospective finder center is
    returned.
+  在水平和垂直星团交叉的地方，返回一个预期的定位符中心。
+
   _centers:  Returns a pointer to a freshly-allocated list of finder centers.
              This must be freed by the caller.
   _edge_pts: Returns a pointer to a freshly-allocated list of edge points
@@ -401,11 +505,15 @@ static int qr_finder_find_crossings(qr_finder_center *_centers,
   _img:      The binary image to search.
   _width:    The width of the image.
   _height:   The height of the image.
-  Return: The number of putative finder centers located.*/
+  Return: The number of putative finder centers located.
+  
+  */
 static int qr_finder_centers_locate(qr_finder_center **_centers,
  qr_finder_edge_pt **_edge_pts, qr_reader *reader,
  int _width,int _height){
+  // 过定位符的水平线
   qr_finder_line     *hlines = reader->finder_lines[0].lines;
+  // 过定位符的水平线的个数
   int                 nhlines = reader->finder_lines[0].nlines;
   qr_finder_line     *vlines = reader->finder_lines[1].lines;
   int                 nvlines = reader->finder_lines[1].nlines;
@@ -418,33 +526,45 @@ static int qr_finder_centers_locate(qr_finder_center **_centers,
   int                 nvclusters;
   int                 ncenters;
 
+  // 要内存
   /*Cluster the detected lines.*/
   hneighbors=(qr_finder_line **)malloc(nhlines*sizeof(*hneighbors));
   /*We require more than one line per cluster, so there are at most nhlines/2.*/
   hclusters=(qr_finder_cluster *)malloc((nhlines>>1)*sizeof(*hclusters));
   nhclusters=qr_finder_cluster_lines(hclusters,hneighbors,hlines,nhlines,0);
+
   /*We need vertical lines to be sorted by X coordinate, with ties broken by Y
      coordinate, for clustering purposes.
+     为了聚类(弄成一组)的目的，我们需要用X坐标对垂直线进行排序，用Y坐标断开关系。
     We scan the image in the opposite order for cache efficiency, so sort the
-     lines we found here.*/
+     lines we found here.
+    我们以相反的顺序扫描图像以获得缓存效率，因此对我们在这里找到的线进行排序。
+    排序是为了更高的效率
+     */
   qsort(vlines,nvlines,sizeof(*vlines),qr_finder_vline_cmp);
   vneighbors=(qr_finder_line **)malloc(nvlines*sizeof(*vneighbors));
   /*We require more than one line per cluster, so there are at most nvlines/2.*/
   vclusters=(qr_finder_cluster *)malloc((nvlines>>1)*sizeof(*vclusters));
+
   nvclusters=qr_finder_cluster_lines(vclusters,vneighbors,vlines,nvlines,1);
   /*Find line crossings among the clusters.*/
   if(nhclusters>=3&&nvclusters>=3){
     qr_finder_edge_pt  *edge_pts;
     qr_finder_center   *centers;
+    // 边缘的个数
+    // 这里使用了边缘的个数，而quirc解码库里面使用的是外圈,内圈内的像素点的个数
+    // 意思是这里使用的是长度，而quirc里面使用的是面积．是否就是说这里的效率更高呢?
     int                 nedge_pts;
     int                 i;
     nedge_pts=0;
-    for(i=0;i<nhclusters;i++)nedge_pts+=hclusters[i].nlines;
-    for(i=0;i<nvclusters;i++)nedge_pts+=vclusters[i].nlines;
+    for(i=0; i<nhclusters; i++) nedge_pts += hclusters[i].nlines;
+    for(i=0; i<nvclusters; i++) nedge_pts += vclusters[i].nlines;
+    // 乘2是有道理的，一条通过定位符的线，被认为有两点通过中间的边缘
     nedge_pts<<=1;
     edge_pts=(qr_finder_edge_pt *)malloc(nedge_pts*sizeof(*edge_pts));
     centers=(qr_finder_center *)malloc(
      QR_MINI(nhclusters,nvclusters)*sizeof(*centers));
+
     ncenters=qr_finder_find_crossings(centers,edge_pts,
      hclusters,nhclusters,vclusters,nvclusters);
     *_centers=centers;
@@ -3802,21 +3922,30 @@ static int qr_reader_try_configuration(qr_reader *_reader,
   }
   return -1;
 }
-
+// 这里面应该有如何找A,B,C三点
 void qr_reader_match_centers(qr_reader *_reader,qr_code_data_list *_qrlist,
  qr_finder_center *_centers,int _ncenters,
  const unsigned char *_img,int _width,int _height){
   /*The number of centers should be small, so an O(n^3) exhaustive search of
      which ones go together should be reasonable.*/
+  // 也就是说这个函数之前可能会找到找到好几个定位符的中心，这里通过某种算法筛选出合理的
+  // 起始我之前也可以找到好几个定位符的中心，但是不知道应该如何去筛选
+  // 那么究竟是如何筛选的呢？
+
+  // 以地址mark开始的内存里面存的是定位符们的信息
   unsigned char *mark;
-  int            i;
+  int            i
   int            j;
   int            k;
   mark=(unsigned char *)calloc(_ncenters,sizeof(*mark));
   for(i=0;i<_ncenters;i++){
-    /*TODO: We might be able to accelerate this step significantly by
+    /*
+       TODO: We might be able to accelerate this step significantly by
        considering the remaining finder centers in a more intelligent order,
-       based on the first finder center we just chose.*/
+       based on the first finder center we just chose.
+      基于我们刚刚选择的第一个查找中心，我们可以通过以更加明智的顺序考虑剩余的查找中心
+      来显着加速这一步骤
+    */
     for(j=i+1;!mark[i]&&j<_ncenters;j++){
       for(k=j+1;!mark[j]&&k<_ncenters;k++)if(!mark[k]){
         qr_finder_center *c[3];
@@ -3850,6 +3979,7 @@ void qr_reader_match_centers(qr_reader *_reader,qr_code_data_list *_qrlist,
               ninside++;
             }
           }
+          // 这里是处理多个QR码
           if(ninside>=3){
             /*We might have a "Double QR": a code inside a code.
               Copy the relevant centers to a new array and do a search confined
@@ -3913,16 +4043,18 @@ int _zbar_qr_decode (qr_reader *reader,
                      zbar_image_scanner_t *iscn,
                      zbar_image_t *img)
 {
+    // 先放几个空的箱子
     int nqrdata = 0;
     qr_finder_edge_pt *edge_pts = NULL;
     qr_finder_center *centers = NULL;
 
+    // 如果没有足够多的线经过定位符，就返回
     if(reader->finder_lines[0].nlines < 9 ||
        reader->finder_lines[1].nlines < 9)
         return(0);
 
     svg_group_start("finder", 0, 1. / (1 << QR_FINDER_SUBPREC), 0, 0, 0);
-
+    // 使用&通常是要通过这个函数找到的
     int ncenters = qr_finder_centers_locate(&centers, &edge_pts, reader, 0, 0);
 
     zprintf(14, "%dx%d finders, %d centers:\n",
@@ -3930,13 +4062,25 @@ int _zbar_qr_decode (qr_reader *reader,
             reader->finder_lines[1].nlines,
             ncenters);
     qr_svg_centers(centers, ncenters);
-
+    // 至此找到了好几个定位点的中心
     if(ncenters >= 3) {
+
+        // 至此才来做二值化
+        // 之前做行处理的时候也是有一定的二值化的
+        // 现在的问题是: 你是如何找A(左下finder的右上module中心),
+        //                     B(左上finder的右下module中心),
+        //                     C(右上finder的左下module中心)三点的?????????????
+        //　　回.....回
+        //    :
+        //    :
+        //   回
+        // 因为另外一个QR解码算法quirc花了好多的力气(利用嵌套)去找这三个点
         void *bin = qr_binarize(img->data, img->width, img->height);
 
+        // 这是马上就要得到解码数据的节奏啊
         qr_code_data_list qrlist;
         qr_code_data_list_init(&qrlist);
-
+        // 所谓匹配，大概就是将上一个步骤得到的数据拿给下一个步骤用
         qr_reader_match_centers(reader, &qrlist, centers, ncenters,
                                 bin, img->width, img->height);
 

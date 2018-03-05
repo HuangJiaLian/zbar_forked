@@ -113,10 +113,13 @@ struct qr_code_data_entry{
 
 
 /*Low-level QR code data.*/
+// 低层次的 QR 码的数据
 struct qr_code_data{
   /*The decoded data entries.*/
+  // 解码后的数据入口
   qr_code_data_entry *entries;
   int                 nentries;
+
   /*The code version (1...40).*/
   unsigned char       version;
   /*The ECC level (0...3, corresponding to 'L', 'M', 'Q', and 'H').*/

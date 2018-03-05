@@ -16,7 +16,7 @@ main()
                     zbar_scanner_new_scan(scn){ // 返回是哪种类型的码
                         zbar_scanner_flush(){
                             process_edge(){
-                                zbar_decode_width()//返还码的类型?
+                                zbar_decode_width()//返还码的类型,通过边缘的宽度
                             }
 
                         }
@@ -34,16 +34,18 @@ main()
 
                         }
                         qr_finder_centers_locate(){
+                            // 要内存
+                            //对过定位符的一组线排序形成簇
                             // 找定位符的中心点s
                         }
                         if(ncenters >= 3){
                             // 找到定位符后再二值化
                             qr_binarize();
                             qr_code_data_list_init(&qrlist);
-
+                            
                             qr_reader_match_centers(){ // QR图像处理的主要部分 
                                 // 极其重要的
-
+                
                             }
 
                             qr_code_data_list_extract_text(){
@@ -51,7 +53,7 @@ main()
                             }
                             
                         }
-                    }
+                   }
                     // *****
                 }
             }

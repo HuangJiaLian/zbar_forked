@@ -59,7 +59,7 @@ typedef enum zbar_format_group_e {
     ZBAR_FMT_NUM
 } zbar_format_group_t;
 
-
+// 传给 QR解码器的第三个参数的结构
 struct zbar_image_s {
     uint32_t format;            /* fourcc image format code */
     unsigned width, height;     /* image size */

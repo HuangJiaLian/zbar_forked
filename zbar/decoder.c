@@ -173,7 +173,10 @@ zbar_symbol_type_t zbar_decoder_get_type (const zbar_decoder_t *dcode)
 {
     return(dcode->type);
 }
-
+// 通过对宽度的判断，说明是什么码，所以说判断是哪一种码是
+// 没有那么困难的, 每一种码有它固有的特征
+// 这只是由一个边缘像素点发起的条码宽度测试是何种码，后续应该会做统计
+// 用多个数据来推测出最终的条码是什么类型
 zbar_symbol_type_t zbar_decode_width (zbar_decoder_t *dcode,
                                       unsigned w)
 {

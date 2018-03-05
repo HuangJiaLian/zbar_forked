@@ -54,15 +54,16 @@ typedef struct qr_finder_line qr_finder_line;
   Here v is 0 for horizontal and 1 for vertical lines.*/
   // v为0表示经过定位符的水平线，v为1则表示经过定位符的垂直线
   // 计算机里面画线最容易画的便是这两种线了
-
-
 struct qr_finder_line {
   /*The location of the upper/left endpoint of the line.
     The left/upper edge of the center section is used, since other lines must
-    cross in this region.
+    cross in this region
     线的上/左端点的位置。
     使用中心部分的左/上边缘，因为其他线必须在此区域中交叉。 
+    当为水平的线时:说＂左＂
+    当为垂直的线时:说＂上＂
      */
+  // 线的起始坐标
   qr_point pos;
 
   /*
@@ -79,6 +80,7 @@ struct qr_finder_line {
     We use the midpoint instead of the edge because it can be located more
      reliably.*/
   int      boffs;
+  
   /*The offset to the midpoint of the end section (part of the outside ring),
      or 0 if we couldn't identify the edge of the end section.
     We use the midpoint instead of the edge because it can be located more
