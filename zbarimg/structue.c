@@ -30,29 +30,38 @@ main()
                     }
                     // 真正的QR解码
                     _zbar_qr_decode(){
-                        svg_group_start("finder", 0, 1. / (1 << QR_FINDER_SUBPREC), 0, 0, 0){
-
-                        }
                         qr_finder_centers_locate(){
                             // 要内存
                             //对过定位符的一组线排序形成簇
                             // 找定位符的中心点s
-                        }
+                            }
                         if(ncenters >= 3){
                             // 找到定位符后再二值化
                             qr_binarize();
                             qr_code_data_list_init(&qrlist);
-                            
                             qr_reader_match_centers(){ // QR图像处理的主要部分 
                                 // 极其重要的
-                
+                                // 遍历所有的定位符中心,选其中三个来处理
+                                qr_reader_try_configuration(){
+                                    // 利用叉乘判断三个点的关系，共线就退出
+                                    // affine-transformation 准备
+                                    // 将三个定位符中心做
+                                    qr_aff_unproject();
+                                    // 定位符边缘像素分类??
+                                    qr_finder_edge_pts_aff_classify(&ur,&aff);
+                                    // 定位符估计模块大小和版本
+                                    qr_finder_estimate_module_size_and_version();
+                                }
                             }
 
                             qr_code_data_list_extract_text(){
                                 // 译码
                             }
                             
+                            }
                         }
+
+
                    }
                     // *****
                 }

@@ -138,6 +138,8 @@ struct qr_finder_edge_pt{
   /*The location of the edge point.*/
   // 这个点的坐标
   qr_point pos;
+
+
   /*A label classifying which edge this belongs to:
     0: negative u edge (left)
     1: positive u edge (right)
@@ -145,6 +147,8 @@ struct qr_finder_edge_pt{
     3: positive v edge (bottom)*/
   // 只有四个值，表示这个点处于４边的哪一边
   int      edge;
+
+
   /*The (signed) perpendicular distance of the edge point from a line parallel
      to the edge passing through the finder center, in (u,v) coordinates.
     This is also re-used by RANSAC to store inlier flags. */
@@ -162,7 +166,6 @@ struct qr_finder_edge_pt{
     或最適用於這一數據模型的參數。
   参考: https://zh.wikipedia.org/wiki/%E9%9A%A8%E6%A9%9F%E6%8A%BD%E6%A8%A3%E4%B8%80%E8%87%B4
 */ 
-  // ？？？
   int      extent;
 };
 
@@ -591,7 +594,12 @@ static unsigned qr_point_distance2(const qr_point _p1,const qr_point _p2){
 
 /*Returns the cross product of the three points, which is positive if they are
    in CCW order (in a right-handed coordinate system), and 0 if they're
-   colinear.*/
+   colinear.
+  返回三个点的叉乘，结果为正表示三点为逆时针排列, 结果为0代表共线
+  点2在线01的左侧就叫做三点为逆时针排列
+  参考:
+  https://stackoverflow.com/questions/22156646/homework-cross-product-of-3-points-in-2d-space
+  */
 static int qr_point_ccw(const qr_point _p0,
  const qr_point _p1,const qr_point _p2){
   return (_p1[0]-_p0[0])*(_p2[1]-_p0[1])-(_p1[1]-_p0[1])*(_p2[0]-_p0[0]);
@@ -740,9 +748,11 @@ static int qr_line_isect(qr_point _p,const qr_line _l0,const qr_line _l1){
 
 
 
-/*An affine homography.
+/*
+  An affine homography.
   This maps from the image (at subpel resolution) to a square domain with
-   power-of-two sides (of res bits) and back.*/
+  power-of-two sides (of res bits) and back.
+*/
 struct qr_aff{
   int fwd[2][2];
   int inv[2][2];
@@ -779,6 +789,7 @@ static void qr_aff_init(qr_aff *_aff,
 }
 
 /*Map from the image (at subpel resolution) into the square domain.*/
+// 把原始图片的点(_x,_y)映射到方形域的点_q去
 static void qr_aff_unproject(qr_point _q,const qr_aff *_aff,
  int _x,int _y){
   _q[0]=_aff->inv[0][0]*(_x-_aff->x0)+_aff->inv[0][1]*(_y-_aff->y0);
@@ -954,21 +965,33 @@ static void qr_hom_project(qr_point _p,const qr_hom *_hom,
 
 
 /*All the information we've collected about a finder pattern in the current
-   configuration.*/
+   configuration.
+  qr码定位符结构体
+  这里是结合了透视变换后构建的一种数据结构
+  */
 struct qr_finder{
   /*The module size along each axis (in the square domain).*/
+  // (在方形区域的)两个方向的module size 
   int                size[2];
   /*The version estimated from the module size along each axis.*/
+  // 根据每个轴的模块大小估算的版本
   int                eversion[2];
   /*The list of classified edge points for each edge.*/
+  // 每个边缘的分类边缘点列表：一个定位符有4组边缘
+  // 0(左) 1(右) 2(上) 3（下）
   qr_finder_edge_pt *edge_pts[4];
   /*The number of edge points classified as belonging to each edge.*/
+  // 每组边缘点的边缘像素的个数
   int                nedge_pts[4];
   /*The number of inliers found after running RANSAC on each edge.*/
+  // 在每条边上运行RANSAC后发现的内点数量。
+  // 问: 这个有什么用 ??
   int                ninliers[4];
   /*The center of the finder pattern (in the square domain).*/
+  // (在方形区域)定位符的中心
   qr_point           o;
   /*The finder center information from the original image.*/
+  // 定位符在原始图片的中心信息
   qr_finder_center  *c;
 };
 
@@ -986,7 +1009,10 @@ static int qr_cmp_edge_pt(const void *_a,const void *_b){
    distance along the corresponding axis from the center of the finder pattern
    (in the square domain).
   The resulting list of edge points is sorted by edge index, with ties broken
-   by extent.*/
+   by extent.
+  计算每个边缘点所属边缘的索引，以及从定位符中心（在方形域中）沿相应轴的（有符号）距离。 
+  得到的边缘点列表按边缘索引进行排序，关系以范围为中心。 
+  */
 static void qr_finder_edge_pts_aff_classify(qr_finder *_f,const qr_aff *_aff){
   qr_finder_center *c;
   int               i;
@@ -1054,9 +1080,16 @@ static void qr_finder_edge_pts_hom_classify(qr_finder *_f,const qr_hom *_hom){
    version for larger versions can be off by larger amounts.*/
 #define QR_LARGE_VERSION_SLACK (3)
 
+
+
 /*Estimates the size of a module after classifying the edge points.
+  边缘点分类后,估计一个模块的大小.
   _width:  The distance between UL and UR in the square domain.
-  _height: The distance between UL and DL in the square domain.*/
+  方形域中左上到右上的距离　问:指的的定位符中心点的距离吗?
+  _height: The distance between UL and DL in the square domain.
+  这个估计算法是在方形区域中估计的
+
+  */
 static int qr_finder_estimate_module_size_and_version(qr_finder *_f,
  int _width,int _height){
   qr_point offs;
@@ -1069,43 +1102,73 @@ static int qr_finder_estimate_module_size_and_version(qr_finder *_f,
   int      uversion;
   int      vversion;
   int      e;
+  // 两个偏移量初始化为0,这两个偏移量指的是什么?
+  // 偏移量指的是一个点的坐标，偏离原点的距离。
   offs[0]=offs[1]=0;
-  for(e=0;e<4;e++)if(_f->nedge_pts[e]>0){
+  // 遍历这个定位符周围的4条边界
+  for(e=0;e<4;e++)
+  if(_f->nedge_pts[e]>0){
     qr_finder_edge_pt *edge_pts;
-    int                sum;
-    int                mean;
-    int                n;
+    int                sum;// 和
+    int                mean; // 平均值
+    int                n; // 某条边缘上的边缘点个数
     int                i;
     /*Average the samples for this edge, dropping the top and bottom 25%.*/
+    // 对此边缘的样本进行平均，降低顶部和底部25％
+
+    // 某一边边缘像素点
     edge_pts=_f->edge_pts[e];
+    // 这个边边缘像素点的个数
     n=_f->nedge_pts[e];
     sum=0;
-    for(i=(n>>2);i<n-(n>>2);i++)sum+=edge_pts[i].extent;
+    // 看不懂了?? extent 代表的含义没有搞清楚
+    // 循环起点 i = n/4 ; 循环终点 i < n-(n/4); // 这样到最后恰好可以算出面积??
+    for(i=(n>>2); i<n-(n>>2); i++) sum+=edge_pts[i].extent;
+
+    // n = n - (n/4)*2 等价于 n = n - n/2 等价于 n /= 2 
+    // 那为什么它要写得这么复制?
     n=n-((n>>2)<<1);
+    // 那这个平均值就是这条边距离中心的平均距离
     mean=QR_DIVROUND(sum,n);
+    // 这个偏移量指的是相对原点的偏移量offs[0]是一个点的横坐标
+    // offs[1]是一个点的纵坐标
+    // 猜测: 这个点是否就是比较精准的定位点中心????
+    // e = 0 或者 e = 1时(即左右两条边界时) e >> 1 后的结果是 0 即对应的横坐标
+    // e = 2 或者 e = 3时(即上下两条边界时) e >> 1 后的结果是 1 即对应的纵坐标
+    // 既然是offset那么就不是一个绝对的坐标,而应该是一个相对的坐标,相对某个点的偏移量
+    // 猜测:　这个相对点我猜测就是finder的左上角　?????
     offs[e>>1]+=mean;
+    // 存储数据
+    // 第e条边的距离之和
     sums[e]=sum;
+    // 第e条边上的距离个数
     nsums[e]=n;
-  }
+  }// 否则如果这个边上的边缘点为0,特殊的错误。应该是为了程序的完整性
   else nsums[e]=sums[e]=0;
+  // 至此, for循环结束
+
   /*If we have samples on both sides of an axis, refine our idea of where the
      unprojected finder center is located.*/
-  if(_f->nedge_pts[0]>0&&_f->nedge_pts[1]>0){
+  // 0 左 1右
+  if(_f->nedge_pts[0] > 0 && _f->nedge_pts[1] > 0){
     _f->o[0]-=offs[0]>>1;
     sums[0]-=offs[0]*nsums[0]>>1;
     sums[1]-=offs[0]*nsums[1]>>1;
   }
+
   if(_f->nedge_pts[2]>0&&_f->nedge_pts[3]>0){
     _f->o[1]-=offs[1]>>1;
     sums[2]-=offs[1]*nsums[2]>>1;
     sums[3]-=offs[1]*nsums[3]>>1;
   }
+
   /*We must have _some_ samples along each axis... if we don't, our transform
      must be pretty severely distorting the original square (e.g., with
      coordinates so large as to cause overflow).*/
   nusize=nsums[0]+nsums[1];
   if(nusize<=0)return -1;
   /*The module size is 1/3 the average edge extent.*/
+  // moduele size 其实就是得到一个一个模块占多少个像素
   nusize*=3;
   usize=sums[1]-sums[0];
   usize=((usize<<1)+nusize)/(nusize<<1);
@@ -2025,10 +2088,19 @@ static int qr_alignment_pattern_search(qr_point _p,const qr_hom_cell *_cell,
   _p[1]=besty;
   return 0;
 }
-
+/* 这个函数是在做什么 ????
+参数:
+qr_hom *_hom:做full homography的相关参数
+qr_finder *_ul,qr_finder *_ur,qr_finder *_dl:三个定位点的信息
+qr_point _p[4]: 四个顶点吗 ??
+const qr_aff *_aff：　affine homography 的相关参数
+isaac_ctx *_isaac: 和随机数生成相关结构体
+const unsigned char *_img,int _width,int _height: 图像信息
+*/ 
 static int qr_hom_fit(qr_hom *_hom,qr_finder *_ul,qr_finder *_ur,
  qr_finder *_dl,qr_point _p[4],const qr_aff *_aff,isaac_ctx *_isaac,
  const unsigned char *_img,int _width,int _height){
+   
   qr_point *b;
   int       nb;
   int       cb;
@@ -3709,11 +3781,13 @@ static int qr_code_decode(qr_code_data *_qrdata,const rs_gf256 *_gf,
 
 /*Searches for an arrangement of these three finder centers that yields a valid
    configuration.
+  搜索三个定位符中心的排列得到一个有效配置
   _c: On input, the three finder centers to consider in any order.
   Return: The detected version number, or a negative value on error.*/
 static int qr_reader_try_configuration(qr_reader *_reader,
  qr_code_data *_qrdata,const unsigned char *_img,int _width,int _height,
  qr_finder_center *_c[3]){
+  
   int      ci[7];
   unsigned maxd;
   int      ccw;
@@ -3722,15 +3796,21 @@ static int qr_reader_try_configuration(qr_reader *_reader,
   /*Sort the points in counter-clockwise order.*/
   ccw=qr_point_ccw(_c[0]->pos,_c[1]->pos,_c[2]->pos);
   /*Colinear points can't be the corners of a quadrilateral.*/
+  // 三点共线是不合理的
   if(!ccw)return -1;
+
   /*Include a few extra copies of the cyclical list to avoid mods.*/
+  // 包含循环列表的几个额外副本以避免修改
+  // ci[]里面存的是什么?
   ci[6]=ci[3]=ci[0]=0;
   ci[4]=ci[1]=1+(ccw<0);
   ci[5]=ci[2]=2-(ccw<0);
   /*Assume the points farthest from each other are the opposite corners, and
      find the top-left point.*/
+  // 这一步只是假设点1,点2的距离是最大距离
   maxd=qr_point_distance2(_c[1]->pos,_c[2]->pos);
   i0=0;
+  // 遍历找出最大距离
   for(i=1;i<3;i++){
     unsigned d;
     d=qr_point_distance2(_c[ci[i+1]]->pos,_c[ci[i+2]]->pos);
@@ -3739,32 +3819,62 @@ static int qr_reader_try_configuration(qr_reader *_reader,
       maxd=d;
     }
   }
+  
   /*However, try all three possible orderings, just to be sure (a severely
-     skewed projection could move opposite corners closer than adjacent).*/
+     skewed projection could move opposite corners closer than adjacent).
+    但是，请尝试所有三种可能的排列顺序，以确保（严重倾斜的投影可能会移动对角比邻近更靠近）。
+    */
   for(i=i0;i<i0+3;i++){
+    // 对应两种变换
+    // 参考: 
+    // https://stackoverflow.com/questions/42581296/homography-and-affine-transformation
     qr_aff    aff;
     qr_hom    hom;
+    // 三个定位符,左上，右上，左下
     qr_finder ul;
     qr_finder ur;
     qr_finder dl;
+    // res 是 resolution的简写吗 ?
     int       res;
-    int       ur_version;
-    int       dl_version;
-    int       fmt_info;
+    int       ur_version; // 右上版本?
+    int       dl_version;// 左下版本?
+    int       fmt_info; // 格式信息
+    // .c 是　center（原始图片的中心信息）
     ul.c=_c[ci[i]];
     ur.c=_c[ci[i+1]];
     dl.c=_c[ci[i+2]];
+
     /*Estimate the module size and version number from the two opposite corners.
       The module size is not constant in the image, so we compute an affine
        projection from the three points we have to a square domain, and
        estimate it there.
       Although it should be the same along both axes, we keep separate
-       estimates to account for any remaining projective distortion.*/
+       estimates to account for any remaining projective distortion.
+      
+      估计来自两个对角的模块大小和版本号。 图像中的模块大小并不是恒定的，
+      所以我们从三个点计算仿射投影到我们的方形域，然后在那里估计它。 
+      尽管两轴应该是相同的，但我们保留单独的估计来解释任何剩余的投影失真。
+
+      意思是在这里zbar是先做透视变换,透视变换后再做其他操作．
+      而quirc只是做了少部分的透视变换，明显这里应该是quirc表现会比较好．
+      是这样吗??? 
+      */
+
+    // 透视变换后的的图像有多大，大概和这个有关吧????
     res=QR_INT_BITS-2-QR_FINDER_SUBPREC-qr_ilog(QR_MAXI(_width,_height)-1);
+
+    // affine-transformation　变换初始化
     qr_aff_init(&aff,ul.c->pos,ur.c->pos,dl.c->pos,res);
+    // 做映射操作，把右上定位符的中心c映射到方形域右上中心o
     qr_aff_unproject(ur.o,&aff,ur.c->pos[0],ur.c->pos[1]);
+    // ????
     qr_finder_edge_pts_aff_classify(&ur,&aff);
+    // 关于continue的使用: continue后的语句就不执行了，继续执行下一次循环
+    // 参考:
+    // https://beginnersbook.com/2014/01/c-continue-statement/
+    // 如何估计的呢? 
     if(qr_finder_estimate_module_size_and_version(&ur,1<<res,1<<res)<0)continue;
+    // 映射左下定位符的中心
     qr_aff_unproject(dl.o,&aff,dl.c->pos[0],dl.c->pos[1]);
     qr_finder_edge_pts_aff_classify(&dl,&aff);
     if(qr_finder_estimate_module_size_and_version(&dl,1<<res,1<<res)<0)continue;
@@ -3782,7 +3892,10 @@ static int qr_reader_try_configuration(qr_reader *_reader,
     qr_finder_dump_aff_undistorted(&ul,&ur,&dl,&aff,_img,_width,_height);
 #endif
     /*If we made it this far, upgrade the affine homography to a full
-       homography.*/
+       homography.
+      这里的操作是这样的: 先对三个顶点做affine-transformation变换，判断是否合理
+      如果合理，再去做full homography变换
+       */
     if(qr_hom_fit(&hom,&ul,&ur,&dl,_qrdata->bbox,&aff,
      &_reader->isaac,_img,_width,_height)<0){
       continue;
@@ -3934,10 +4047,11 @@ void qr_reader_match_centers(qr_reader *_reader,qr_code_data_list *_qrlist,
 
   // 以地址mark开始的内存里面存的是定位符们的信息
   unsigned char *mark;
-  int            i
+  int            i;
   int            j;
   int            k;
   mark=(unsigned char *)calloc(_ncenters,sizeof(*mark));
+  // 遍历所有的中心
   for(i=0;i<_ncenters;i++){
     /*
        TODO: We might be able to accelerate this step significantly by
@@ -3947,13 +4061,17 @@ void qr_reader_match_centers(qr_reader *_reader,qr_code_data_list *_qrlist,
       来显着加速这一步骤
     */
     for(j=i+1;!mark[i]&&j<_ncenters;j++){
-      for(k=j+1;!mark[j]&&k<_ncenters;k++)if(!mark[k]){
+      for(k=j+1;!mark[j]&&k<_ncenters;k++)
+      if(!mark[k]){
         qr_finder_center *c[3];
         qr_code_data      qrdata;
         int               version;
+        // 这里是在所有的定位点中心选三个点，然后做处理，　这里好像是可以优化
         c[0]=_centers+i;
         c[1]=_centers+j;
         c[2]=_centers+k;
+        // 这里的函数名里面有有个try 的意思就是任选的这三个点有可能不是要的三个
+        // 定位点的中心
         version=qr_reader_try_configuration(_reader,&qrdata,
          _img,_width,_height,c);
         if(version>=0){
@@ -3997,6 +4115,7 @@ void qr_reader_match_centers(qr_reader *_reader,qr_code_data_list *_qrlist,
           for(l=0;l<_ncenters;l++)if(mark[l]==2)mark[l]=1;
         }
       }
+
     }
   }
   free(mark);

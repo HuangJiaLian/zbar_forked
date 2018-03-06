@@ -22,7 +22,10 @@ typedef struct isaac_ctx isaac_ctx;
     No efficient method is known for deducing their internal states.
     ISAAC requires an amortized 18.75 instructions to produce a 32-bit value.
     There are no cycles in ISAAC shorter than 2**40 values.
-    The expected cycle length is 2**8295 values.*/
+    The expected cycle length is 2**8295 values.
+  参考: https://en.wikipedia.org/wiki/ISAAC_(cipher)
+  一种随机数生成算法
+  */
 struct isaac_ctx{
   unsigned n;
   unsigned r[ISAAC_SZ];
