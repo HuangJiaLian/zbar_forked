@@ -608,6 +608,7 @@ static int qr_point_ccw(const qr_point _p0,
 
 
 /*Evaluates a line equation at a point.
+在某一点评估直线方程。
   _line: The line to evaluate.
   _x:    The X coordinate of the point.
   _y:    The y coordinate of the point.
@@ -1109,24 +1110,26 @@ static int qr_finder_estimate_module_size_and_version(qr_finder *_f,
   for(e=0;e<4;e++)
   if(_f->nedge_pts[e]>0){
     qr_finder_edge_pt *edge_pts;
-    int                sum;// 和
-    int                mean; // 平均值
+    int                sum;// 长度的和
+    int                mean; // 长度的平均值
     int                n; // 某条边缘上的边缘点个数
-    int                i;
-    /*Average the samples for this edge, dropping the top and bottom 25%.*/
-    // 对此边缘的样本进行平均，降低顶部和底部25％
+    int                i; // 一个index
 
-    // 某一边边缘像素点
+    /*Average the samples for this edge, dropping the top and bottom 25%.*/
+    // 对此边缘的样本进行平均，扔掉顶部和底部25％，　相当于只用中间的一半进行操作
+
+    // 某一边(左,右,上,下)边缘像素点
     edge_pts=_f->edge_pts[e];
     // 这个边边缘像素点的个数
     n=_f->nedge_pts[e];
     sum=0;
     // 看不懂了?? extent 代表的含义没有搞清楚
+    // extent是一个距离
     // 循环起点 i = n/4 ; 循环终点 i < n-(n/4); // 这样到最后恰好可以算出面积??
     for(i=(n>>2); i<n-(n>>2); i++) sum+=edge_pts[i].extent;
 
     // n = n - (n/4)*2 等价于 n = n - n/2 等价于 n /= 2 
-    // 那为什么它要写得这么复制?
+    // 那为什么它要写得这么赋值? 
     n=n-((n>>2)<<1);
     // 那这个平均值就是这条边距离中心的平均距离
     mean=QR_DIVROUND(sum,n);
@@ -1137,7 +1140,7 @@ static int qr_finder_estimate_module_size_and_version(qr_finder *_f,
     // e = 2 或者 e = 3时(即上下两条边界时) e >> 1 后的结果是 1 即对应的纵坐标
     // 既然是offset那么就不是一个绝对的坐标,而应该是一个相对的坐标,相对某个点的偏移量
     // 猜测:　这个相对点我猜测就是finder的左上角　?????
-    offs[e>>1]+=mean;
+    offs[e>>1] += mean;
     // 存储数据
     // 第e条边的距离之和
     sums[e]=sum;
@@ -1148,11 +1151,13 @@ static int qr_finder_estimate_module_size_and_version(qr_finder *_f,
   // 至此, for循环结束
 
   /*If we have samples on both sides of an axis, refine our idea of where the
-     unprojected finder center is located.*/
-  // 0 左 1右
+     unprojected finder center is located.
+    如果我们在两侧轴都有采样，改进未投影的定位符中心位置位于何处。 
+     */
+  // 0(左) 1(右)边界上都有边缘点　
   if(_f->nedge_pts[0] > 0 && _f->nedge_pts[1] > 0){
-    _f->o[0]-=offs[0]>>1;
-    sums[0]-=offs[0]*nsums[0]>>1;
+    _f->o[0]-=offs[0]>>1;// 中心的x坐标-偏移量横坐标的一半
+    sums[0]-=offs[0]*nsums[0]>>1;// 具体什么意思还不清楚.??
     sums[1]-=offs[0]*nsums[1]>>1;
   }
 
@@ -1164,15 +1169,29 @@ static int qr_finder_estimate_module_size_and_version(qr_finder *_f,
 
   /*We must have _some_ samples along each axis... if we don't, our transform
      must be pretty severely distorting the original square (e.g., with
-     coordinates so large as to cause overflow).*/
+     coordinates so large as to cause overflow).
+     我们必须在每个轴上有多个样本......如果我们不这样做，
+     我们的变换必须非常严重地扭曲原始方形（例如，坐标很大以至于会导致溢出）
+     这句话有点晕?
+     */
   nusize=nsums[0]+nsums[1];
   if(nusize<=0)return -1;
   /*The module size is 1/3 the average edge extent.*/
   // moduele size 其实就是得到一个一个模块占多少个像素
+  // 为什么不是除以3呢?
   nusize*=3;
   usize=sums[1]-sums[0];
+  #ifdef ENABLE_DEBUG
+    printf("usize = %d\n", usize);
+  #endif
   usize=((usize<<1)+nusize)/(nusize<<1);
+  #ifdef ENABLE_DEBUG
+    printf("new usize = %d\n", usize);
+  #endif
   if(usize<=0)return -1;
+  // 为什么这个usize的数字这么大呢?
+  // 因为这已经不是在原始的图片上了，而是方形区域，变换后的区域
+
   /*Now estimate the version directly from the module size and the distance
      between the finder patterns.
     This is done independently using the extents along each axis.
@@ -1180,6 +1199,8 @@ static int qr_finder_estimate_module_size_and_version(qr_finder *_f,
      configuration.*/
   uversion=(_width-8*usize)/(usize<<2);
   if(uversion<1||uversion>40+QR_LARGE_VERSION_SLACK)return -1;
+
+
   /*Now do the same for the other axis.*/
   nvsize=nsums[2]+nsums[3];
   if(nvsize<=0)return -1;
@@ -1188,7 +1209,9 @@ static int qr_finder_estimate_module_size_and_version(qr_finder *_f,
   vsize=((vsize<<1)+nvsize)/(nvsize<<1);
   if(vsize<=0)return -1;
   vversion=(_height-8*vsize)/(vsize<<2);
-  if(vversion<1||vversion>40+QR_LARGE_VERSION_SLACK)return -1;
+  if(vversion<1||vversion>40+QR_LARGE_VERSION_SLACK)return -1
+  ;
+
   /*If the estimated version using extents along one axis is significantly
      different than the estimated version along the other axis, then the axes
      have significantly different scalings (relative to the grid).
@@ -1206,13 +1229,16 @@ static int qr_finder_estimate_module_size_and_version(qr_finder *_f,
   /*We intentionally do not compute an average version from the sizes along
      both axes.
     In the presence of projective distortion, one of them will be much more
-     accurate than the other.*/
+     accurate than the other.
+     使用两个而非使用平均值是因为其中一个肯定会比另外一个准确
+     */
   _f->eversion[0]=uversion;
   _f->eversion[1]=vversion;
   return 0;
 }
 
 /*Eliminate outliers from the classified edge points with RANSAC.*/
+// 用RANSAC消除分类边缘点的异常值。
 static void qr_finder_ransac(qr_finder *_f,const qr_aff *_hom,
  isaac_ctx *_isaac,int _e){
   qr_finder_edge_pt *edge_pts;
@@ -1329,9 +1355,13 @@ static int qr_line_fit_finder_edge(qr_line _l,
 
 /*Perform a least-squares line fit to a pair of common finder edges using the
    inliers found by RANSAC.
+   使用RANSAC发现的内点，对一对常见的探测器边缘执行最小二乘法拟合。
   Unlike a normal edge fit, we guarantee that this one succeeds by creating at
    least one point on each edge using the estimated module size if it has no
-   inliers.*/
+   inliers.
+   与正常的边缘拟合不同，我们保证，如果没有内部点，
+   则使用估计的模块尺寸在每个边缘上创建至少一个点，从而保证这一点成功。
+   */
 static void qr_line_fit_finder_pair(qr_line _l,const qr_aff *_aff,
  const qr_finder *_f0,const qr_finder *_f1,int _e){
   qr_point          *pts;
@@ -2088,7 +2118,10 @@ static int qr_alignment_pattern_search(qr_point _p,const qr_hom_cell *_cell,
   _p[1]=besty;
   return 0;
 }
-/* 这个函数是在做什么 ????
+/* 这个函数是在做什么 ???? 
+  应该要使用timming pantern 了
+  fit应该就是微调了,得到一个标准，以便下一步得到一个比较好的变换图像
+
 参数:
 qr_hom *_hom:做full homography的相关参数
 qr_finder *_ul,qr_finder *_ur,qr_finder *_dl:三个定位点的信息
@@ -2146,20 +2179,42 @@ static int qr_hom_fit(qr_hom *_hom,qr_finder *_ul,qr_finder *_ur,
   int       i;
   /*We attempt to correct large-scale perspective distortion by fitting lines
      to the edge of the code area.
+     我们试图通过将代码行拟合到代码区域的边缘来校正大规模透视失真。
+     要拟合qr码的边界，　那是不是得找到边上的边缘点。
+     也就是去用RANSAC去拟合
+
     We could also look for an alignment pattern now, but that wouldn't work for
      version 1 codes, which have no alignment pattern.
+     我们现在也可以寻找一个对齐符，但这对于没有对齐符的版本1代码来说不起作用。
     Even if the code is supposed to have one, there's go guarantee we'd find it
-     intact.*/
+     intact.
+     即使代码应该有一个，也有保证我们会发现它完好无损。
+     */
+
   /*Fitting lines is easy for the edges on which we have two finder patterns.
+  对于我们有两个定位符的边缘，拟合线很容易。
     After the fit, UL is guaranteed to be on the proper side, but if either of
-     the other two finder patterns aren't, something is wrong.*/
+     the other two finder patterns aren't, something is wrong.
+   拟合之后，左上保证在适当的一侧，但如果其他两个定位符中的任何一种都不是，则有些事情是错误的。 
+     */
+  /*
+    参数1: qr定位符
+    参数2: affine homography变换参数
+    参数2: 边缘编号
+  */
+  // 使用ransac消除左上(ul)定位符的左边缘(0)的异常值
   qr_finder_ransac(_ul,_aff,_isaac,0);
+  // 使用ransac消除左下(dl)定位符的左边缘(0)的异常值
   qr_finder_ransac(_dl,_aff,_isaac,0);
+  // 使用左上(ul)和左下(dl)两个定位符来拟合最左边的线段l[0]
   qr_line_fit_finder_pair(l[0],_aff,_ul,_dl,0);
+  //　这个评估是什么意思，另外三点定义的qr_line[3]究竟是个什么样子的线?
   if(qr_line_eval(l[0],_dl->c->pos[0],_dl->c->pos[1])<0||
    qr_line_eval(l[0],_ur->c->pos[0],_ur->c->pos[1])<0){
     return -1;
   }
+
+  // 拟合上面的那条直线
   qr_finder_ransac(_ul,_aff,_isaac,2);
   qr_finder_ransac(_ur,_aff,_isaac,2);
   qr_line_fit_finder_pair(l[2],_aff,_ul,_ur,2);
@@ -2167,28 +2222,42 @@ static int qr_hom_fit(qr_hom *_hom,qr_finder *_ul,qr_finder *_ur,
    qr_line_eval(l[2],_ur->c->pos[0],_ur->c->pos[1])<0){
     return -1;
   }
+
+  // l[1] 和 l[4]是最难确定的
   /*The edges which only have one finder pattern are more difficult.
+  只有一个定位符的边缘更加困难。
     We start by fitting a line to the edge of the one finder pattern we do
      have.
+    我们首先拟合一条线到我们有的一个定位符的边缘。
     This can fail due to an insufficient number of sample points, and even if
      it succeeds can be fairly inaccurate, because all of the points are
      clustered in one corner of the QR code.
+    由于采样点数量不足，这可能会失败，即使成功也可能相当不准确，因为所有点都聚集在QR码的一个角落。
     If it fails, we just use an axis-aligned line in the affine coordinate
      system.
+     如果失败，我们只需在仿射坐标系中使用轴对齐的线。
     Then we walk along the edge of the entire code, looking for
      light:dark:light patterns perpendicular to the edge.
+    然后，我们沿着整个QR码的边缘走，寻找明：暗：明　垂直于边缘的模式。
     Wherever we find one, we take the center of the dark portion as an
      additional sample point.
-    At the end, we re-fit the line using all such sample points found.*/
+    无论我们找到哪一个，我们都将黑暗部分的中心作为附加采样点。
+    At the end, we re-fit the line using all such sample points found.
+    最后，我们使用找到的所有这样的采样点重新拟合线
+    */
+  // drv = 右上定位符竖直方向模块大小/2（squre domain）
   drv=_ur->size[1]>>1;
+  // 初步拟合l[1]
   qr_finder_ransac(_ur,_aff,_isaac,1);
   if(qr_line_fit_finder_edge(l[1],_ur,1,_aff->res)>=0){
     if(qr_line_eval(l[1],_ul->c->pos[0],_ul->c->pos[1])<0||
      qr_line_eval(l[1],_dl->c->pos[0],_dl->c->pos[1])<0){
       return -1;
     }
-    /*Figure out the change in ru for a given change in rv when stepping along
-       the fitted line.*/
+    /*
+      Figure out the change in ru for a given change in rv when stepping along
+      the fitted line.
+    */
     if(qr_aff_line_step(_aff,l[1],1,drv,&dru)<0)return -1;
   }
   else dru=0;
@@ -2201,7 +2270,8 @@ static int qr_hom_fit(qr_hom *_hom,qr_finder *_ul,qr_finder *_ur,
      qr_line_eval(l[3],_ur->c->pos[0],_ur->c->pos[1])<0){
       return -1;
     }
-    /*Figure out the change in bv for a given change in bu when stepping along
+    /*
+      Figure out the change in bv for a given change in bu when stepping along
        the fitted line.*/
     if(qr_aff_line_step(_aff,l[3],0,dbu,&dbv)<0)return -1;
   }
@@ -2384,6 +2454,7 @@ static int qr_hom_fit(qr_hom *_hom,qr_finder *_ul,qr_finder *_ur,
     }
   }
   /*By default, use the edge intersection point for the bottom-right corner.*/
+  // bottom right x 
   brx=_p[3][0];
   bry=_p[3][1];
   /*However, if our average version estimate is greater than 1, NOW we try to
@@ -3861,6 +3932,7 @@ static int qr_reader_try_configuration(qr_reader *_reader,
       */
 
     // 透视变换后的的图像有多大，大概和这个有关吧????
+    // 是的
     res=QR_INT_BITS-2-QR_FINDER_SUBPREC-qr_ilog(QR_MAXI(_width,_height)-1);
 
     // affine-transformation　变换初始化
@@ -3873,13 +3945,15 @@ static int qr_reader_try_configuration(qr_reader *_reader,
     // 参考:
     // https://beginnersbook.com/2014/01/c-continue-statement/
     // 如何估计的呢? 
+    // 利用中心那个方块占９小格来估计module_size
     if(qr_finder_estimate_module_size_and_version(&ur,1<<res,1<<res)<0)continue;
-    // 映射左下定位符的中心
+
+    // 映射左下定位符的中
     qr_aff_unproject(dl.o,&aff,dl.c->pos[0],dl.c->pos[1]);
     qr_finder_edge_pts_aff_classify(&dl,&aff);
     if(qr_finder_estimate_module_size_and_version(&dl,1<<res,1<<res)<0)continue;
-    /*If the estimated versions are significantly different, reject the
-       configuration.*/
+
+    /* If the estimated versions are significantly different, reject the configuration.*/
     if(abs(ur.eversion[1]-dl.eversion[0])>QR_LARGE_VERSION_SLACK)continue;
     qr_aff_unproject(ul.o,&aff,ul.c->pos[0],ul.c->pos[1]);
     qr_finder_edge_pts_aff_classify(&ul,&aff);
@@ -3888,13 +3962,20 @@ static int qr_reader_try_configuration(qr_reader *_reader,
      abs(ul.eversion[0]-dl.eversion[0])>QR_LARGE_VERSION_SLACK){
       continue;
     }
+
+
+
+
+
 #if defined(QR_DEBUG)
     qr_finder_dump_aff_undistorted(&ul,&ur,&dl,&aff,_img,_width,_height);
 #endif
+
     /*If we made it this far, upgrade the affine homography to a full
        homography.
       这里的操作是这样的: 先对三个顶点做affine-transformation变换，判断是否合理
       如果合理，再去做full homography变换
+      上面是做对定位符做affine-transformtion
        */
     if(qr_hom_fit(&hom,&ul,&ur,&dl,_qrdata->bbox,&aff,
      &_reader->isaac,_img,_width,_height)<0){
@@ -4035,6 +4116,14 @@ static int qr_reader_try_configuration(qr_reader *_reader,
   }
   return -1;
 }
+// 至此qr_reader_try_configuration（）才完成
+
+
+
+
+
+
+
 // 这里面应该有如何找A,B,C三点
 void qr_reader_match_centers(qr_reader *_reader,qr_code_data_list *_qrlist,
  qr_finder_center *_centers,int _ncenters,
@@ -4074,6 +4163,7 @@ void qr_reader_match_centers(qr_reader *_reader,qr_code_data_list *_qrlist,
         // 定位点的中心
         version=qr_reader_try_configuration(_reader,&qrdata,
          _img,_width,_height,c);
+        // Last Here -----------------------------------------------------------
         if(version>=0){
           int ninside;
           int l;

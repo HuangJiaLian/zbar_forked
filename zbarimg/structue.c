@@ -49,8 +49,17 @@ main()
                                     qr_aff_unproject();
                                     // 定位符边缘像素分类??
                                     qr_finder_edge_pts_aff_classify(&ur,&aff);
-                                    // 定位符估计模块大小和版本
+                                    // 定位符估计模块大小(方形区域)和版本
                                     qr_finder_estimate_module_size_and_version();
+                                    // 遇到不合适的就进一步检测下一个可能的的定位符
+
+                                    // 如果比较合理就做full homography
+                                    // 这里面有和timming patern有关了
+                                    qr_hom_fit(){
+                                        // 拟合QR码的四条边缘线
+                                        // l[0] l[2] 很准确, l[1] l[３]要麻烦些
+                                    }
+                                    qr_hom_unproject();
                                 }
                             }
 
