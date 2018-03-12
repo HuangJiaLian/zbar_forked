@@ -20,7 +20,7 @@ main()
                             }
 
                         }
-
+                        
                         zbar_decoder_new_scan(scn->decoder){
                             qr_finder_reset(&dcode->qrf);
                         }

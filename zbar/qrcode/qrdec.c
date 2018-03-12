@@ -2292,6 +2292,7 @@ static int qr_hom_fit(qr_hom *_hom,qr_finder *_ul,qr_finder *_ur,
     memcpy(b[i],_dl->edge_pts[3][i].pos,sizeof(b[i]));
   }
   /*Set up the step parameters for the affine projection.*/
+  // 处理设置
   ox=(_aff->x0<<_aff->res)+(1<<_aff->res-1);
   oy=(_aff->y0<<_aff->res)+(1<<_aff->res-1);
   rx=_aff->fwd[0][0]*ru+_aff->fwd[0][1]*rv+ox;
