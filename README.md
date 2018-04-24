@@ -147,7 +147,7 @@ gcc main.c -o decoder -lm -lzbar
 
 **运行程序**:
 
-在[这里](pic/01.png)下载测试图片，运行：
+在[这里](pic/)下载测试图片，运行：
 
 ```
 LD_LIBRARY_PATH=../lib/ ./decoder 01.png
