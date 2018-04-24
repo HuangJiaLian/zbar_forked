@@ -38,4 +38,4 @@ dlopen=''
 dlpreopen=''
 
 # Directory that this library needs to be installed in:
-libdir='/home/jack/Desktop/Github/zbar_forked/x64/lib'
+libdir='/home/falcon/桌面/Github/zbar_forked/x64/lib'

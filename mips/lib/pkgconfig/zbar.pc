@@ -1,4 +1,4 @@
-prefix=/home/jack/Desktop/Github/zbar_forked/mips
+prefix=/home/falcon/桌面/Github/zbar_forked/mips
 exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include
